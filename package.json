@@ -4,7 +4,7 @@
   "description": "backend at chai aur code channel",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
   },
   "keywords": [
     "backend",
@@ -16,6 +16,9 @@
     "nodemon": "^3.1.11"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongoose": "^9.1.5",
     "prettier": "^3.8.1"
   }
 }
