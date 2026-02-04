@@ -4,6 +4,7 @@ import {User} from "../models/user.models.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshTokens = async(userId) => {
     try {
@@ -337,12 +338,139 @@ const updateUserCoverImage = asyncHandler( async (req, res) => {
     return res
     .status(200)
     .json( new ApiResponse(200, user, "Cover Image Updated Successfully"))
+})
 
+// Aggretegation Pipelines
+const getUserChannelProfile = asyncHandler( async (req, res) => {
+    const {userName} = req.params;
+
+    if(!userName?.trim()) {
+        throw new ApiError(400, "username is missing");
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: {
+                userName: userName?.toLowerCase()
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"                
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo" 
+            }
+        },
+        {
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers"
+                },
+                channelSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                       if: {$in: [req.user?.id, "subscribers.subscriber"]},
+                       then: true,
+                       else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                fullName: 1,
+                userName: 1,
+                subscribersCount: 1,
+                channelSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+            }
+        }
+    ])
+
+    console.log(channel);
+
+    if (!channel?.length) {
+        throw new ApiError(404, "channel does not exists")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, channel[0], "channel fetched successfully")
+    )
+})
+
+const getWatchHistory = asyncHandler( async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "Owner", //owner field mein hamre pas user ki sari fields agayi hai jese: userName, email, avatar
+                                         //etc pr hame ye sari fields nhi chahiye hame kuch hi fields isme se chahiye so ham ek
+                                         // or new subpipeline likh rahe hai
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        userName: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields: {
+                            Owner: {
+                                $first: "$Owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user[0].watchHistory,
+            "Watch history fetched successfully"
+        )
+    )
 })
 
 
-
-
 export {registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDeatils,
-    updateUserAvatar, updateUserCoverImage
-};
+    updateUserAvatar, updateUserCoverImage, getUserChannelProfile, getWatchHistory
+}
