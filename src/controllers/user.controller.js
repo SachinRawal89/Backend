@@ -414,6 +414,7 @@ const getUserChannelProfile = asyncHandler( async (req, res) => {
     )
 })
 
+// Sub aggregation pipelines
 const getWatchHistory = asyncHandler( async (req, res) => {
     const user = await User.aggregate([
         {
